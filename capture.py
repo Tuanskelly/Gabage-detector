@@ -10,7 +10,8 @@ import serial
 from datetime import datetime
 
 # Constants
-MODEL_PATH = "models/gc_torchscript.onnx"
+# Update training model path here
+MODEL_PATH = "models/gc_torchscript_v2.onnx"
 CLASS_NAMES = ["cardboard_paper", "glass", "metal", "others", "plastic"]
 DEVICE = "cpu"
 ARDUINO_PORT = "/dev/ttyUSB0"  # or "/dev/ttyUSB0" for Linux/RPi5
@@ -47,8 +48,8 @@ class GarbageClassifier:
             "cardboard_paper": "1",
             "glass": "2",
             "metal": "3",
-            "others": "4",
-            "plastic": "5"
+            "others": "5",
+            "plastic": "4"
         }
         class_int = class_to_int.get(class_label, "0")
         cooldown_time = 1  # Cooldown period in seconds
@@ -100,30 +101,25 @@ def zoom_and_crop(frame, zoom_scale=ZOOM_SCALE, target_size=IMAGE_SIZE):
 
     return cropped_frame
 def process_frame(frame, classifier):
-    # Add a short delay to allow the camera to focus
-    time.sleep(0.5)  # Adjust the time (in seconds) as needed
-
-    # Crop the frame to the desired region
-    # cropped_frame = frame[:, (FRAME_WIDTH - FRAME_HEIGHT) // 2:(FRAME_WIDTH - FRAME_HEIGHT) // 2 + FRAME_HEIGHT]
-    cropped_frame = zoom_and_crop(frame)
-    img_path = "capture.jpg"
-    cv2.imwrite(img_path, cropped_frame)
-    img = Image.open(img_path)
-
-    # Classify and send result
-    start_time = time.time()
-    pred_class = classifier.classify_image(img)
-    classifier.send_to_arduino(pred_class)
-    print(f"Predicted class: {pred_class} | Inference time: {time.time() - start_time:.4f} seconds")
-
-    # Display prediction on frame
-    cv2.putText(cropped_frame, pred_class, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-    cv2.imshow("Captured Image", cropped_frame)
-
-    # Save image
-    output_path = os.path.join(OUTPUT_PATH, pred_class, f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
-    img.save(output_path)
-
+	time.sleep(0.5)
+	
+	cropped_frame = zoom_and_crop(frame)
+	img_path = "capture.jpg"
+	cv2.imwrite(img_path, cropped_frame)
+	img = Image.open(img_path)
+	
+	start_time = time.time()
+	pred_class = classifier.classify_image(img)
+	classifier.send_to_arduino(pred_class)
+	print(f"Predicted class: {pred_class} ~ Interference time: {time.time() - start_time:.4f} seconds")
+	
+	cv2.putText(cropped_frame, pred_class, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+	cv2.imshow("Captured Image", cropped_frame)
+	
+	output_path = os.path.join(OUTPUT_PATH, pred_class, f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+	img.save(output_path)
+	
+	
 def main():
     classifier = GarbageClassifier()
     # cap = cv2.VideoCapture(0)
@@ -171,11 +167,18 @@ def main():
 
             if key == ord(' '):
                 process_frame(frame, classifier)
-
+                
+            if key == ord('t'):
+                classifier.send_to_arduino("cardboard_paper")
+                time.sleep(1)  # Give Arduino time to process
+                # Pretend the Arduino sent '0' and we respond as normal
+                process_frame(frame, classifier)
+                print("Test send report")
+				
             if key == ord('q'):
                 print("Exiting...")
                 break
-
+                     
     except KeyboardInterrupt:
         print("Exiting...")
     finally:
